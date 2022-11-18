@@ -1,6 +1,4 @@
-# import pickle, tensorflow as tf, tf_util, numpy as np
-import torch
-import pickle, numpy as np
+import pickle, tensorflow as tf, numpy as np
 import utils
 
 def load_policy(filename):
@@ -30,8 +28,8 @@ def load_policy(filename):
                 # return tf_util.lrelu(x, leak=.01) # openai/imitation nn.py:233
                 return utils.lrelu(x, leak=.01)
             elif nonlin_type == 'tanh':
-                # return tf.tanh(x)
-                return torch.tanh(x)
+                return tf.tanh(x)
+                # return torch.tanh(x)
             else:
                 raise NotImplementedError(nonlin_type)
 
@@ -41,6 +39,8 @@ def load_policy(filename):
         obsnorm_meansq = policy_params['obsnorm']['Standardizer']['meansq_1_D']
         obsnorm_stdev = np.sqrt(np.maximum(0, obsnorm_meansq - np.square(obsnorm_mean)))
         print('obs', obsnorm_mean.shape, obsnorm_stdev.shape)
+
+        # obs_bo = torch.zeros_like(obsnorm_mean)
         normedobs_bo = (obs_bo - obsnorm_mean) / (obsnorm_stdev + 1e-6) # 1e-6 constant from Standardizer class in nn.py:409 in openai/imitation
 
         curr_activations_bd = normedobs_bo
@@ -51,16 +51,17 @@ def load_policy(filename):
         for layer_name in sorted(layer_params.keys()):
             l = layer_params[layer_name]
             W, b = read_layer(l)
-            curr_activations_bd = apply_nonlin(torch.matmul(curr_activations_bd, W) + b)
+            curr_activations_bd = apply_nonlin(tf.matmul(curr_activations_bd, W) + b)
 
         # Output layer
         W, b = read_layer(policy_params['out'])
         # output_bo = tf.matmul(curr_activations_bd, W) + b
-        output_bo = torch.matmul(curr_activations_bd, W) + b
+        output_bo = tf.matmul(curr_activations_bd, W) + b
         return output_bo
 
     obs_bo = tf.placeholder(tf.float32, [None, None])
     # obs_bo = torch.ones()
     a_ba = build_policy(obs_bo)
-    policy_fn = tf_util.function([obs_bo], a_ba)
+    # a_ba = build_policy()
+    policy_fn = utils.function([obs_bo], a_ba)
     return policy_fn

@@ -9,19 +9,17 @@ Example usage:
 Author of this script and included expert policies: Jonathan Ho (hoj@openai.com)
 """
 
+import logging
 import os
 import json
-import logging
-import time
 import pickle
-# import tensorflow as tf
+import tensorflow as tf
 import numpy as np
-# import tf_util
-import gym
+import utils
 import load_policy
 
-# tf.logging.set_verbosity(tf.logging.ERROR)
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+tf.logging.set_verbosity(tf.logging.ERROR)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 def main():
     import argparse
@@ -40,53 +38,53 @@ def main():
     
     #logging.basicConfig(level=logging.INFO)
     save_name = args.envname # + '_' + time.strftime('%Y-%m-%d-%H-%M-%S')
-    #file_handler = logging.FileHandler(os.path.join('expert_data', save_name + '.txt'))
-    #logging.getLogger().addHandler(file_handler)
+    # file_handler = logging.FileHandler(os.path.join('expert_data', save_name + '.txt'))
+    # logging.getLogger().addHandler(file_handler)
     
-    # with tf.Session():
-        # tf_util.initialize()
+    with tf.Session():
+        utils.initialize()
 
-    import gym
-    env = gym.make(args.envname)
-    max_steps = args.max_timesteps or env.spec.timestep_limit
+        import gym
+        env = gym.make(args.envname)
+        max_steps = args.max_timesteps or env.spec.timestep_limit
 
-    returns = []
-    observations = []
-    actions = []
-    for i in range(args.num_rollouts):
-        print('iter', i)
-        obs = env.reset()
-        done = False
-        totalr = 0.
-        steps = 0
-        while not done:
-            action = policy_fn(obs[None,:])
-            observations.append(obs)
-            actions.append(action)
-            obs, r, done, _ = env.step(action)
-            totalr += r
-            steps += 1
-            if args.render:
-                env.render()
-            if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
-            if steps >= max_steps:
-                break
-        returns.append(totalr)
+        returns = []
+        observations = []
+        actions = []
+        for i in range(args.num_rollouts):
+            print('iter', i)
+            obs = env.reset()
+            done = False
+            totalr = 0.
+            steps = 0
+            while not done:
+                action = policy_fn(obs[None,:])
+                observations.append(obs)
+                actions.append(action)
+                obs, r, done, _ = env.step(action)
+                totalr += r
+                steps += 1
+                if args.render:
+                    env.render()
+                if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
+                if steps >= max_steps:
+                    break
+            returns.append(totalr)
 
-    print('returns {}'.format(returns))
-    print('mean return {}'.format(np.mean(returns)))
-    print('std of return {}'.format(np.std(returns)))
-    
-    with open(os.path.join('expert_data', save_name + '.json'), 'w') as f:
-        json.dump({'returns': returns, 
-                    'mean_return': np.mean(returns),
-                    'std_return': np.std(returns)}, f)
-    
-    expert_data = {'observations': np.array(observations),
-                    'actions': np.squeeze(np.array(actions), axis=1)}
+        print('returns {}'.format(returns))
+        print('mean return {}'.format(np.mean(returns)))
+        print('std of return {}'.format(np.std(returns)))
+        
+        with open(os.path.join('expert_data', save_name + '.json'), 'w') as f:
+            json.dump({'returns': returns, 
+                        'mean_return': np.mean(returns),
+                        'std_return': np.std(returns)}, f)
+        
+        expert_data = {'observations': np.array(observations),
+                        'actions': np.squeeze(np.array(actions), axis=1)}
 
-    with open(os.path.join('expert_data', args.envname + '.pkl'), 'wb') as f:
-        pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
+        with open(os.path.join('expert_data', args.envname + '.pkl'), 'wb') as f:
+            pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
 
 if __name__ == '__main__':
     main()
