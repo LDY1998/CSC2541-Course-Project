@@ -1,6 +1,9 @@
 gym==0.10.5
 mujoco-py
 tensorflow==1.14.0
+tensorflow_probability==0.7.0
+statsmodels
+scikit-learn
 numpy
 seaborn
 protobuf==3.20.0

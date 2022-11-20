@@ -19,14 +19,10 @@ def main():
     args = parser.parse_args()
 
     print('loading and building expert policy')
-    # policy_fn = load_policy.load_policy(args.expert_policy_file)
     policy_fn = load_policy_torch.ExpertPolicy(args.expert_policy_file)
     print('loaded atraintnd built')
     
-    #logging.basicConfig(level=logging.INFO)
     save_name = args.envname # + '_' + time.strftime('%Y-%m-%d-%H-%M-%S')
-    # file_handler = logging.FileHandler(os.path.join('expert_data', save_name + '.txt'))
-    # logging.getLogger().addHandler(file_handler)
     
 
     import gym
