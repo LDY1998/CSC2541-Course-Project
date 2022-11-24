@@ -1,4 +1,3 @@
-import logging
 import os
 import json
 import pickle
@@ -23,7 +22,7 @@ def main():
     print('loaded atraintnd built')
     
     save_name = args.envname # + '_' + time.strftime('%Y-%m-%d-%H-%M-%S')
-    
+ 
 
     import gym
     env = gym.make(args.envname)
@@ -72,7 +71,6 @@ def main():
     expert_data = {'observations': np.array(observations),
                     'actions': np.squeeze(np.array(actions), axis=1), "timesteps": np.array(timesteps), "rollouts": np.array(rollouts)}
 
-    
 
     with open(os.path.join('expert_data', args.envname + '.pkl'), 'wb') as f:
         pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
