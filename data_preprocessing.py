@@ -10,7 +10,7 @@ def main(filename):
     with open(filename, 'rb') as f:
         data = pickle.loads(f.read())
 
-    num_rollouts = data['rollouts'][-1]+1
+    num_rollouts = data['trajectories'][-1]+1
     n = data["observations"].shape[0]
     # confounded data
     c_data = copy(data)
@@ -45,3 +45,6 @@ def main(filename):
 
 if __name__ == '__main__':
     main(FILE_PATH)
+    # with open("expert_data/Trajectories-10_samples-10000_masked-5.pkl", 'rb') as f:
+    #     data = pickle.loads(f.read())
+    #     print(data)

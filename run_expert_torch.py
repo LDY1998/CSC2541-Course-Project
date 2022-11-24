@@ -69,7 +69,7 @@ def main():
                     'std_return': np.std(returns)}, f)
     
     expert_data = {'observations': np.array(observations),
-                    'actions': np.squeeze(np.array(actions), axis=1), "timesteps": np.array(timesteps), "rollouts": np.array(rollouts)}
+                    'actions': np.squeeze(np.array(actions), axis=1), "timesteps": np.array(timesteps), "trajectories": np.array(rollouts)}
 
 
     with open(os.path.join('expert_data', args.envname + '.pkl'), 'wb') as f:
