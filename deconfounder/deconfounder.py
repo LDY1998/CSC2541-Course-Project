@@ -2,16 +2,13 @@ import numpy as np
 import numpy.random as npr
 import pandas as pd
 import tensorflow as tf
-import statsmodels.api as sm
 
 from tensorflow_probability import edward2 as ed
-from sklearn.datasets import load_breast_cancer
 from scipy import sparse, stats
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib
+import pickle
 
 matplotlib.rcParams.update({'font.sans-serif': 'Helvetica',
                             'axes.labelsize': 10,
@@ -20,18 +17,33 @@ matplotlib.rcParams.update({'font.sans-serif': 'Helvetica',
                             'axes.titlesize': 10})
 
 
-## TODO: remove later
+INPUT_PATH = "../expert_data/Trajectories-10_samples-10000_masked-5_confounded.pkl"
+
+
+def without_keys(dic, keys):
+    return {k: dic[k] for k in dic if k not in keys}
+
+
 def load_data():
-    data = load_breast_cancer()
-    # work with the first 10 features
-    num_fea = 10
-    df = pd.DataFrame(data["data"][:, :num_fea], columns=data["feature_names"][:num_fea])
-    dfy = data["target"]
-    return df, dfy
+    # load masked data with observed confounder
+    with open(INPUT_PATH, 'rb') as handle:
+        dic = pickle.load(handle)
+        df = pd.DataFrame(dic['observations'],
+                          columns=['observation_' + str(i + 1) for i in range(dic['observations'].shape[1])])
+        # select all columns except 'observations'
+        dic_rest = without_keys(dic, {"observations"})
+        return df, dic_rest
 
 
-## make a scatter plot of all pairs of the causes, exclude highly correlated causes
+def pickle_data(dic, dim):
+    # save dictionary to pickle file
+    OUTPUT_PATH = f"../expert_data/Trajectories-10_samples-10000_masked-5_confounded_inferred-{dim}.pkl"
+    with open(OUTPUT_PATH, 'wb') as file:
+        pickle.dump(dic, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 def plot_scatter(df):
+    ## make a scatter plot of all pairs of the causes, exclude highly correlated causes
     sns.pairplot(df, size=1.5)
     plt.show()
 
@@ -41,17 +53,19 @@ def drop_high_correlated(df):
     upper_tri = cor_matrix.where(np.triu(np.ones(cor_matrix.shape), k=1).astype(np.bool))
     to_drop = [column for column in upper_tri.columns if any(upper_tri[column] > 0.95)]
     dfX = df.drop(columns=to_drop)
-    print('df1\n', dfX)
     return dfX
 
 
 def process_data():
-    df, dfy = load_data()  # TODO: change latter
-    plot_scatter(df)
+    df, dict_rest = load_data()
+    # plot_scatter(df)
     dfX = drop_high_correlated(df)
-    # standardize the data for PPCA
+    dict_distribution = {
+        'mean': dfX.mean().to_numpy(),
+        'std': dfX.std().to_numpy()
+    }
     X = np.array((dfX - dfX.mean()) / dfX.std())
-    return X, dfy
+    return X, dict_rest, dict_distribution
 
 
 def split_train_val(X):
@@ -75,14 +89,12 @@ class Deconfounder:
     def __init__(
             self,
             X,
-            dfy
+            latent_dim
     ):
         self.X = X
-        self.dfy = dfy
-
+        self.latent_dim = latent_dim
         self.num_datapoints, self.data_dim = self.X.shape
         self.x_train, self.x_vad, self.holdout_subjects, self.holdout_mask, self.holdout_row = split_train_val(self.X)
-        self.latent_dim = 2
         self.stddv_datapoints = 0.1
         self.qb_mean = tf.Variable(np.ones([1, self.data_dim]), dtype=tf.float32)
         self.qw_mean = tf.Variable(np.ones([self.latent_dim, self.data_dim]), dtype=tf.float32)
@@ -190,10 +202,8 @@ class Deconfounder:
                 z_mean_inferred = sess.run(self.qz_mean)
                 z_stddv_inferred = sess.run(self.qz_stddv)
 
-        print("Inferred axes:")
-        print(w_mean_inferred)
-        print("Standard Deviation:")
-        print(w_stddv_inferred)
+        # print("Inferred axes:", w_mean_inferred)
+        # print("Standard Deviation:", w_stddv_inferred)
 
         plt.plot(range(1, num_epochs, 5), t)
         plt.show()
@@ -264,7 +274,7 @@ class Deconfounder:
             X_aug = np.column_stack([self.X, Z_hat])
             return X_aug
         else:
-            raise ValueError("𝑝 -value is too small!")
+            raise ValueError("p-value is too small!")
 
 
 def replace_latents(b, w, w2, z):
@@ -285,11 +295,13 @@ def replace_latents(b, w, w2, z):
 
 
 def main():
-    X, dfy = process_data()
-    deconfounder = Deconfounder(X, dfy)
-    X_aug = deconfounder.substitute()
-    print('X_aug\n', X_aug.shape)
-    return X_aug, dfy
+    X, dic_rest, dict_distribution = process_data()
+    for dim in np.arange(1, 6):
+        deconfounder = Deconfounder(X, dim)
+        X_aug = deconfounder.substitute()
+        dic_obs = {'observations': X_aug}
+        dic = {**dic_obs, **dic_rest, **dict_distribution}
+        pickle_data(dic, dim)
 
 
 if __name__ == "__main__":
