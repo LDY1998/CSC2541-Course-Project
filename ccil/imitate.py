@@ -1,17 +1,19 @@
-from datetime import datetime
+import pickle
 import argparse
+from datetime import datetime
 from functools import partial
 
 import gym
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from ignite.engine import Engine, Events
 from ignite.metrics import Accuracy, Loss
-from torch.utils.data import DataLoader
+import numpy as np
 
 from ccil.environments.mountain_car import MountainCarStateEncoder
-from ccil.utils.data import random_split, batch_cat, DataLoaderRepeater, Trajectory
+from ccil.utils.data import random_split, batch_cat, DataLoaderRepeater, Trajectory, TransitionDataset
 from ccil.utils.models import SimplePolicy, MLP, UniformMaskPolicy
 from ccil.utils.policy_runner import PolicyRunner, RandomMaskPolicyAgent, FixedMaskPolicyAgent
 from ccil.utils.utils import random_mask_from_state, data_root_path, mask_idx_to_mask
@@ -138,6 +140,30 @@ def imitate(args):
         print(f"Policy saved to {path}")
 
 
+def load_dataset(data_path):
+    # Keys: ['observations', 'actions', 'timesteps', 'trajectories', 'mean', 'std']
+    with open(data_path, 'rb') as fin:
+        obj = pickle.load(fin)
+
+    states, actions = obj['observations'], obj['actions']
+    traj_ids = obj['trajectories']
+    mean, std = None, None
+    if 'mean' in obj and 'std' in obj:
+        mean, std = obj['mean'], obj['std']
+
+    trajectories = []
+    for traj_id in np.unique(traj_ids):
+        traj_indices = traj_ids == traj_id
+        num_steps = np.count_nonzero(traj_indices)
+        rewards = np.zeros((num_steps,))
+        pixels = np.zeros((num_steps,))
+        print(states[traj_indices].tolist(), end='\n\n\n')
+        trajectories.append(Trajectory(states[traj_indices], actions[traj_indices], rewards, pixels))
+
+    dataset = TransitionDataset.from_trajectories(trajectories, stack_size=2, expert_trajectories=True)
+    return dataset, mean, std
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('input_mode', choices=['original', 'confounded'])
@@ -150,4 +176,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    load_dataset('./expert_data/Trajectories-10_samples-10000_masked-5_confounded_inferred-1.pkl')
