@@ -1,4 +1,3 @@
-import logging
 import os
 import json
 import pickle
@@ -23,7 +22,7 @@ def main():
     print('loaded atraintnd built')
     
     save_name = args.envname # + '_' + time.strftime('%Y-%m-%d-%H-%M-%S')
-    
+ 
 
     import gym
     env = gym.make(args.envname)
@@ -32,7 +31,10 @@ def main():
     returns = []
     observations = []
     actions = []
+    timesteps = []
+    rollouts = []
     for i in range(args.num_rollouts):
+        timesteps_rollout = []
         print('iter', i)
         obs = env.reset()
         done = False
@@ -44,6 +46,8 @@ def main():
             action = action.detach().numpy()
             observations.append(obs)
             actions.append(action)
+            rollouts.append(i)
+            timesteps_rollout.append(steps)
             obs, r, done, _ = env.step(action)
             totalr += r
             steps += 1
@@ -53,6 +57,7 @@ def main():
             if steps >= max_steps:
                 break
         returns.append(totalr)
+        timesteps.extend(timesteps_rollout)
 
     print('returns {}'.format(returns))
     print('mean return {}'.format(np.mean(returns)))
@@ -64,7 +69,8 @@ def main():
                     'std_return': np.std(returns)}, f)
     
     expert_data = {'observations': np.array(observations),
-                    'actions': np.squeeze(np.array(actions), axis=1)}
+                    'actions': np.squeeze(np.array(actions), axis=1), "timesteps": np.array(timesteps), "trajectories": np.array(rollouts)}
+
 
     with open(os.path.join('expert_data', args.envname + '.pkl'), 'wb') as f:
         pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
