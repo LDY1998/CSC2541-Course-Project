@@ -13,9 +13,9 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.neural_network import MLPRegressor
 
 rand_seed = 123
-INPUT_PATH = "../expert_data/Trajectories-10_samples-10000_masked-5_confounded.pkl"
-expert_path = "../expert_data/Hopper-v2.pkl"
-confounded_path = "../expert_data/Trajectories-10_samples-10000_confounded.pkl"
+INPUT_PATH = "./expert_data/Trajectories-10_samples-10000_masked-5_confounded.pkl"
+expert_path = "./expert_data/Hopper-v2.pkl"
+confounded_path = "./expert_data/Trajectories-10_samples-10000_confounded.pkl"
 
 
 def set_rand_seed():
@@ -327,6 +327,10 @@ def factor_model(confounded, drop_dims, latent_dim):
                     'regr': regr}
         with open(save_path, 'wb') as file:
             pickle.dump(data, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+    with open(save_path, 'rb') as fin:
+        obj = pickle.load(fin)
+    return obj
 
 
 def main():

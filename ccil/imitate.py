@@ -5,14 +5,14 @@ from functools import partial
 
 import gym
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from ignite.engine import Engine, Events
-from ignite.metrics import Accuracy, Loss
+from ignite.metrics import MeanAbsoluteError, Loss
 import numpy as np
 
-from ccil.environments.mountain_car import MountainCarStateEncoder
+from deconfounder.deconfounder import factor_model as load_factor_model
+from ccil.environments.hopper import HopperStateEncoder
 from ccil.utils.data import random_split, batch_cat, DataLoaderRepeater, Trajectory, TransitionDataset
 from ccil.utils.models import SimplePolicy, MLP, UniformMaskPolicy
 from ccil.utils.policy_runner import PolicyRunner, RandomMaskPolicyAgent, FixedMaskPolicyAgent
@@ -45,14 +45,14 @@ def print_metrics(engine, trainer, evaluator_name):
     print(
         f"Epoch: {trainer.state.epoch:> 3} {evaluator_name.title(): <5} "
         f"loss={engine.state.metrics['loss']:.4f} "
-        f"acc={engine.state.metrics['acc']:.4f}")
+        f"mae={engine.state.metrics['mae']:.4f}")
 
 
 def run_simple(policy_model, state_encoder):
     """
     Run the policy in environment.
     """
-    env = gym.make("MountainCar-v0")
+    env = gym.make("Hopper-v2")
     agent = RandomMaskPolicyAgent(policy_model)
     runner = PolicyRunner(env, agent, state_encoder)
     trajectories = runner.run_num_episodes(20)
@@ -63,7 +63,7 @@ def run_uniform(policy_model, state_encoder):
     """
     Run all 8 policies in environment.
     """
-    env = gym.make("MountainCar-v0")
+    env = gym.make("Hopper-v2")
     for mask_idx in range(8):
         agent = FixedMaskPolicyAgent(policy_model, mask_idx_to_mask(3, mask_idx))
         runner = PolicyRunner(env, agent, state_encoder)
@@ -72,10 +72,44 @@ def run_uniform(policy_model, state_encoder):
         print(f'Mean reward mask {mask}: {Trajectory.reward_sum_mean(trajectories)}')
 
 
+def load_dataset(confounded, drop_dims, latent_dim):
+    # Load deconfounders
+    obj = load_factor_model(confounded, drop_dims, latent_dim)
+    factor_model = obj['regr']
+    mean, std = obj['npz_dic']['mean'], obj['npz_dic']['std']
+    deconfounders = obj['npz_dic']['zs']
+
+    # Load expert data
+    # Keys: ['observations', 'actions', 'timesteps', 'trajectories']
+    expert_path = './expert_data/Hopper-v2.pkl'
+    with open(expert_path, 'rb') as fin:
+        obj = pickle.load(fin)
+    states, actions = obj['observations'], obj['actions']
+    traj_ids = obj['trajectories']
+
+    trajectories = []
+    for traj_id in np.unique(traj_ids):
+        traj_indices = traj_ids == traj_id
+        num_steps = np.count_nonzero(traj_indices)
+        rewards = np.zeros(num_steps)
+        pixels = np.zeros(num_steps)
+
+        trajectory = Trajectory(states[traj_indices], actions[traj_indices], rewards, pixels)
+        trajectory.finished()
+        trajectories.append(trajectory)
+
+    dataset = TransitionDataset.from_trajectories(
+        trajectories, deconfounders, stack_size=2, expert_trajectories=True
+    )
+
+    # Build state encoder
+    state_encoder = HopperStateEncoder(confounded, drop_dims, mean, std, factor_model)
+    return dataset, state_encoder
+
+
 def imitate(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    dataset = torch.load(data_root_path / 'demonstrations' / 'mountain_car.pkl')
+    dataset, state_encoder = load_dataset(args.confounded, args.drop_dims, args.latent_dim)
     train_dataset, test_dataset = random_split(dataset, [args.num_samples, args.num_samples], args.data_seed)
 
     dataloaders = {
@@ -86,10 +120,12 @@ def imitate(args):
     dataloaders['train_repeated'] = DataLoaderRepeater(dataloaders['train'], 500)
 
     if args.network == 'simple':
-        policy_model = SimplePolicy(MLP([3, 50, 50, 3])).to(device)
+        input_dim = state_encoder.step(dataset[0].states[0, -1].numpy(), None).shape[-1]
+        policy_model = SimplePolicy(MLP([input_dim, 50, 50, 3])).to(device)
         max_epochs = 10
     elif args.network == 'uniform':
-        policy_model = UniformMaskPolicy(MLP([6, 50, 50, 50, 3])).to(device)
+        input_dim = 2 * state_encoder.step(dataset[0].states[0, -1].numpy(), None).shape[-1]
+        policy_model = UniformMaskPolicy(MLP([input_dim, 50, 50, 50, 3])).to(device)
         max_epochs = 20
     else:
         raise ValueError()
@@ -97,14 +133,12 @@ def imitate(args):
     optimizer = torch.optim.Adam(policy_model.parameters())
 
     def criterion(x, y):
-        return F.cross_entropy(x, y[:, 0])
+        return F.mse_loss(x, y)
 
     metrics = {
-        'loss': Loss(F.cross_entropy, output_transform=lambda x: (x[0], x[1][:, 0])),
-        'acc': Accuracy(output_transform=lambda x: (x[0], x[1][:, 0])),
+        'loss': Loss(F.mse_loss),
+        'mae': MeanAbsoluteError(),
     }
-
-    state_encoder = MountainCarStateEncoder(args.input_mode == 'original')
 
     trainer = Engine(partial(
         train_step, state_encoder=state_encoder, policy_model=policy_model,
@@ -140,35 +174,14 @@ def imitate(args):
         print(f"Policy saved to {path}")
 
 
-def load_dataset(data_path):
-    # Keys: ['observations', 'actions', 'timesteps', 'trajectories', 'mean', 'std']
-    with open(data_path, 'rb') as fin:
-        obj = pickle.load(fin)
-
-    states, actions = obj['observations'], obj['actions']
-    traj_ids = obj['trajectories']
-    mean, std = None, None
-    if 'mean' in obj and 'std' in obj:
-        mean, std = obj['mean'], obj['std']
-
-    trajectories = []
-    for traj_id in np.unique(traj_ids):
-        traj_indices = traj_ids == traj_id
-        num_steps = np.count_nonzero(traj_indices)
-        rewards = np.zeros((num_steps,))
-        pixels = np.zeros((num_steps,))
-        print(states[traj_indices].tolist(), end='\n\n\n')
-        trajectories.append(Trajectory(states[traj_indices], actions[traj_indices], rewards, pixels))
-
-    dataset = TransitionDataset.from_trajectories(trajectories, stack_size=2, expert_trajectories=True)
-    return dataset, mean, std
-
-
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('input_mode', choices=['original', 'confounded'])
-    parser.add_argument('network', choices=['simple', 'uniform'])
-    parser.add_argument('--data_seed', type=int, help="Seed for splitting train/test data. Default=random")
+    parser.add_argument('--confounded', action='store_true')
+    parser.add_argument('--drop_dims', nargs='+', type=int)
+    parser.add_argument('--latent_dim', type=int, default=-1)
+
+    parser.add_argument('--network', choices=['simple', 'uniform'], required=True)
+    parser.add_argument('--data_seed', type=int)
     parser.add_argument('--num_samples', type=int, default=300)
     parser.add_argument('--save', action='store_true')
     parser.add_argument('--name', help="Policy save filename")
@@ -176,5 +189,4 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
-    load_dataset('./expert_data/Trajectories-10_samples-10000_masked-5_confounded_inferred-1.pkl')
+    main()
