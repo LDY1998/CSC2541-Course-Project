@@ -18,10 +18,10 @@ class PolicyRunner:
         trajectory = None
         while not done:
             x = self.state_encoder.step(state, trajectory)
-            action = self.agent(x).item()
+            action = self.agent(x).cpu().detach().numpy()[0]
 
             prev_action, prev_state = action, state
-            state, rew, done, info = self.env.step(action)
+            state, rew, done, info = self.env.step(action)[:4]
 
             trajectory = Trajectory.add_step(
                 trajectory, prev_state, prev_action, rew, None, info=info
@@ -77,7 +77,8 @@ class RandomMaskPolicyAgent:
         x = torch.tensor(state, device=self.device, dtype=torch.float)[None]
         mask = random_mask_from_state(x)
         output = self.policy.forward(x, mask)
-        action = self.output_transformation(output)
+        # action = self.output_transformation(output)
+        action = output
         return action
 
 
@@ -91,5 +92,6 @@ class FixedMaskPolicyAgent:
     def __call__(self, state):
         x = torch.tensor(state, device=self.device, dtype=torch.float)[None]
         output = self.policy.forward(x, self.mask)
-        action = self.output_transformation(output)
+        # action = self.output_transformation(output)
+        action = output
         return action
