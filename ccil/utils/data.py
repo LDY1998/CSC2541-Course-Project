@@ -383,8 +383,7 @@ class TransitionDataset:
             deconfounders=deconfounders,
             expert_actions=expert_actions,
             done=torch.from_numpy(done),
-            stack_size=stack_size,
-            deconfounders=deconfounders
+            stack_size=stack_size
         )
 
     @classmethod
