@@ -228,11 +228,12 @@ class Batch:
     """
     absent_sentinel = -111  # Can not use NaN for int actions
 
-    def __init__(self, states, actions, rewards, pixels, expert_actions, indices):
+    def __init__(self, states, actions, rewards, pixels, deconfounders, expert_actions, indices):
         self.states = states
         self.actions = actions
         self.rewards = rewards
         self.pixels = pixels
+        self.deconfounders = deconfounders
         self.expert_actions = expert_actions
         self.indices = indices
 
@@ -250,13 +251,15 @@ def batch_cat(batches: List[Batch]):
     no_pixels = any([len(b.pixels.shape) == 2 for b in batches])
     tensors = []
     n = sum([b.states.shape[0] for b in batches])
-    for k in ["states", "actions", "rewards", "pixels", "expert_actions", "indices"]:
+    for k in ["states", "actions", "rewards", "pixels", "deconfounders", "expert_actions", "indices"]:
         if k == "indices":
             x = torch.cat([b.indices + i * 100000000 for i, b in enumerate(batches)])
         elif k == "pixels" and no_pixels:
             x = torch.zeros(
                 n, batches[0].states.shape[1], device=batches[0].states.device
             )
+        elif k == "deconfounders" and batches[0].deconfounders is None:
+            x = None
         else:
             x = torch.cat([getattr(b, k) for b in batches])
         tensors.append(x)
@@ -271,12 +274,13 @@ class TransitionDataset:
     All objects are tensors.
     """
     def __init__(
-        self, states, actions, rewards, pixels, expert_actions, done, stack_size
+        self, states, actions, rewards, pixels, deconfounders, expert_actions, done, stack_size
     ):
         self.states = states
         self.actions = actions
         self.rewards = rewards
         self.pixels = pixels
+        self.deconfounders = deconfounders
         self.expert_actions = (
             expert_actions
             if expert_actions is not None
@@ -294,6 +298,7 @@ class TransitionDataset:
             self.actions,
             self.rewards,
             self.pixels,
+            self.deconfounders,
             self.expert_actions,
             self.done,
         ]
@@ -349,6 +354,7 @@ class TransitionDataset:
     def from_trajectories(
         cls,
         trajectories: List[Trajectory],
+        deconfounders: np.ndarray,
         stack_size: int,
         expert_trajectories=False,
         expert_actions=None,
@@ -366,13 +372,19 @@ class TransitionDataset:
             else torch.zeros(length)
             for arr in arrays
         ]
+        if deconfounders is not None:
+            assert deconfounders.shape[0] == tensors[0].size(0)
+            deconfounders = torch.from_numpy(deconfounders)
+
         if expert_trajectories:
             expert_actions = tensors[1]
         return cls(
             *tensors,
+            deconfounders=deconfounders,
             expert_actions=expert_actions,
             done=torch.from_numpy(done),
-            stack_size=stack_size
+            stack_size=stack_size,
+            deconfounders=deconfounders
         )
 
     @classmethod
