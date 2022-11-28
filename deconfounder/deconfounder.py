@@ -304,20 +304,27 @@ def factor_model(confounded, drop_dims, latent_dim):
     save_path = "./expert_data/Trajectories-10_samples-10000"
     if confounded:
         save_path += "_confounded"
-    if len(drop_dims) == 0:  # unmasked
-        save_path += f"_inferred-{latent_dim}.pkl"
-    else:  # masked
-        save_path += f"_masked-{drop_dims}_inferred-{latent_dim}.pkl"
+
+    if len(drop_dims) != 0:  # masked
+        save_path += f"_masked-{drop_dims}"
+
     save_file = Path(save_path)
     if not save_file.is_file():
+        data = {}
         input_path = confounded_path if confounded else expert_path
         X, dict_distribution, _ = load_data(input_path, drop_dims)
-        deconfounder = Deconfounder(X, latent_dim)
-        z = deconfounder.substitute()
-        regr = MultiOutputRegressor(MLPRegressor(random_state=1, max_iter=500))
-        regr.fit(X, z)
-        data = {'npz_dic': {**dict_distribution, 'zs': z},
-                'regr': regr}
+        if latent_dim == -1:  # not use factor model
+            save_path += ".pkl"
+            data = {'npz_dic': {**dict_distribution, 'zs': None},
+                    'regr': None}
+        else:
+            save_path += f"_inferred-{latent_dim}.pkl"
+            deconfounder = Deconfounder(X, latent_dim)
+            z = deconfounder.substitute()
+            regr = MultiOutputRegressor(MLPRegressor(random_state=1, max_iter=500))
+            regr.fit(X, z)
+            data = {'npz_dic': {**dict_distribution, 'zs': z},
+                    'regr': regr}
         with open(save_path, 'wb') as file:
             pickle.dump(data, file, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -327,16 +334,18 @@ def factor_model(confounded, drop_dims, latent_dim):
 
 
 def main():
-    # factor_model(True, [10], 3)
-    path = "../expert_data/Trajectories-10_samples-10000_confounded_masked-[10]_inferred-3.pkl"
+    factor_model(True, [10], 3) #  confounded + mask-[10] + inferred-3
+    factor_model(True, [10], -1)  # confounded + mask-[10] + uninferred
+    path = "../expert_data/Trajectories-10_samples-10000_confounded_masked-[10].pkl"
     with open(path, 'rb') as handle:
         load = pickle.load(handle)
         npz_dic = load['npz_dic']
         regr = load['regr']
         print('mean:', npz_dic['mean'].shape)
         print('std:', npz_dic['std'].shape)
-        print('zs:', npz_dic['zs'].shape)
-        print('regr:', regr.predict([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]))
+        print('zs:', npz_dic['zs'])
+        print('regr:', regr)
+        # print('regr:', regr.predict([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]))
 
 
 if __name__ == "__main__":
