@@ -10,7 +10,7 @@ import seaborn as sns
 import pickle
 from pathlib import Path
 from sklearn.multioutput import MultiOutputRegressor
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.neural_network import MLPRegressor
 
 rand_seed = 123
 INPUT_PATH = "./expert_data/Trajectories-10_samples-10000_masked-5_confounded.pkl"
@@ -314,7 +314,7 @@ def factor_model(confounded, drop_dims, latent_dim):
         X, dict_distribution, _ = load_data(input_path, drop_dims)
         deconfounder = Deconfounder(X, latent_dim)
         z = deconfounder.substitute()
-        regr = MultiOutputRegressor(GradientBoostingRegressor(random_state=0))
+        regr = MultiOutputRegressor(MLPRegressor(random_state=1, max_iter=500))
         regr.fit(X, z)
         data = {'npz_dic': {**dict_distribution, 'zs': z},
                 'regr': regr}
@@ -327,12 +327,16 @@ def factor_model(confounded, drop_dims, latent_dim):
 
 
 def main():
-    # factor_model(True, [10], 2)
-    path = "../expert_data/Trajectories-10_samples-10000_confounded_masked-[10]_inferred-2.pkl"
+    # factor_model(True, [10], 3)
+    path = "../expert_data/Trajectories-10_samples-10000_confounded_masked-[10]_inferred-3.pkl"
     with open(path, 'rb') as handle:
         load = pickle.load(handle)
         npz_dic = load['npz_dic']
         regr = load['regr']
+        print('mean:', npz_dic['mean'].shape)
+        print('std:', npz_dic['std'].shape)
+        print('zs:', npz_dic['zs'].shape)
+        print('regr:', regr.predict([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]))
 
 
 if __name__ == "__main__":
