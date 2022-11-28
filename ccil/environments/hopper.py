@@ -26,10 +26,12 @@ class HopperStateEncoder:
         # Unobserved confounder
         if len(self.drop_dims):
             kept_dims = [i for i in range(state.size(-1)) if i not in self.drop_dims]
-            state = state[:, :, kept_dims]
+            state = state[:, kept_dims]
 
         # Standardize
-        state = (state - self.mean) / self.std
+        mean = torch.FloatTensor(self.mean, device=state.device)
+        std = torch.FloatTensor(self.std, device=state.device)
+        state = (state - mean) / std
 
         # Deconfounder
         if batch.deconfounders is not None:
@@ -39,7 +41,7 @@ class HopperStateEncoder:
 
     def step(self, state, trajectory):
         # For running in environment
-        assert state.ndims == 1
+        assert state.ndim == 1
 
         # Observed confounder
         if trajectory and self.confounded:
@@ -58,6 +60,6 @@ class HopperStateEncoder:
 
         # Deconfounder
         if self.factor_model is not None:
-            state = np.concatenate([state, self.factor_model(state)])
+            state = np.concatenate([state, self.factor_model.predict(state.reshape(1, -1)).reshape(-1)])
 
         return state

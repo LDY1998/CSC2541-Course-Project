@@ -14,6 +14,7 @@ class PolicyRunner:
 
     def run_episode(self):
         state, done = self.env.reset(), False
+        state = state[0]
         trajectory = None
         while not done:
             x = self.state_encoder.step(state, trajectory)
