@@ -2,37 +2,44 @@ import numpy as np
 import numpy.random as npr
 import pandas as pd
 import tensorflow as tf
-
 from tensorflow_probability import edward2 as ed
+import random
 from scipy import sparse, stats
 import matplotlib.pyplot as plt
 import seaborn as sns
-import matplotlib
 import pickle
+from pathlib import Path
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 
-matplotlib.rcParams.update({'font.sans-serif': 'Helvetica',
-                            'axes.labelsize': 10,
-                            'xtick.labelsize': 6,
-                            'ytick.labelsize': 6,
-                            'axes.titlesize': 10})
-
-
+rand_seed = 123
 INPUT_PATH = "../expert_data/Trajectories-10_samples-10000_masked-5_confounded.pkl"
+expert_path = "../expert_data/Hopper-v2.pkl"
+confounded_path = "../expert_data/Trajectories-10_samples-10000_confounded.pkl"
+
+
+def set_rand_seed():
+    # set random seed so everyone gets the same number
+    random.seed(rand_seed)
+    np.random.seed(rand_seed)
+    tf.set_random_seed(rand_seed)
 
 
 def without_keys(dic, keys):
     return {k: dic[k] for k in dic if k not in keys}
 
 
-def load_data():
+def load_data(expert_path, drop_dims):
     # load masked data with observed confounder
-    with open(INPUT_PATH, 'rb') as handle:
+    with open(expert_path, 'rb') as handle:
         dic = pickle.load(handle)
         df = pd.DataFrame(dic['observations'],
                           columns=['observation_' + str(i + 1) for i in range(dic['observations'].shape[1])])
+        df_masked = df.drop(df.columns[drop_dims], axis=1)
+        X, dict_distribution = process_data(df_masked)
         # select all columns except 'observations'
         dic_rest = without_keys(dic, {"observations"})
-        return df, dic_rest
+        return X, dict_distribution, dic_rest
 
 
 def pickle_data(dic, dim):
@@ -43,7 +50,7 @@ def pickle_data(dic, dim):
 
 
 def plot_scatter(df):
-    ## make a scatter plot of all pairs of the causes, exclude highly correlated causes
+    # make a scatter plot of all pairs of the causes, exclude highly correlated causes
     sns.pairplot(df, size=1.5)
     plt.show()
 
@@ -56,8 +63,7 @@ def drop_high_correlated(df):
     return dfX
 
 
-def process_data():
-    df, dict_rest = load_data()
+def process_data(df):
     # plot_scatter(df)
     dfX = drop_high_correlated(df)
     dict_distribution = {
@@ -65,7 +71,7 @@ def process_data():
         'std': dfX.std().to_numpy()
     }
     X = np.array((dfX - dfX.mean()) / dfX.std())
-    return X, dict_rest, dict_distribution
+    return X, dict_distribution
 
 
 def split_train_val(X):
@@ -271,8 +277,7 @@ class Deconfounder:
         if overall_pval > 0.01:
             # approximate the (random variable) substitute confounders with their inferred mean.
             Z_hat = inferred_dic['z_mean_inferred']
-            X_aug = np.column_stack([self.X, Z_hat])
-            return X_aug
+            return Z_hat
         else:
             raise ValueError("p-value is too small!")
 
@@ -294,14 +299,36 @@ def replace_latents(b, w, w2, z):
     return interceptor
 
 
+def factor_model(confounded, drop_dims, latent_dim):
+    set_rand_seed()
+    save_path = "../expert_data/Trajectories-10_samples-10000"
+    if confounded:
+        save_path += "_confounded"
+    if len(drop_dims) == 0:  # unmasked
+        save_path += f"_inferred-{latent_dim}.pkl"
+    else:  # masked
+        save_path += f"_masked-{drop_dims}_inferred-{latent_dim}.pkl"
+    save_file = Path(save_path)
+    if not save_file.is_file():
+        input_path = confounded_path if confounded else expert_path
+        X, dict_distribution, _ = load_data(input_path, drop_dims)
+        deconfounder = Deconfounder(X, latent_dim)
+        z = deconfounder.substitute()
+        regr = MultiOutputRegressor(GradientBoostingRegressor(random_state=0))
+        regr.fit(X, z)
+        data = {'npz_dic': {**dict_distribution, 'zs': z},
+                'regr': regr}
+        with open(save_path, 'wb') as file:
+            pickle.dump(data, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 def main():
-    X, dic_rest, dict_distribution = process_data()
-    for dim in np.arange(1, 6):
-        deconfounder = Deconfounder(X, dim)
-        X_aug = deconfounder.substitute()
-        dic_obs = {'observations': X_aug}
-        dic = {**dic_obs, **dic_rest, **dict_distribution}
-        pickle_data(dic, dim)
+    # factor_model(True, [10], 2)
+    path = "../expert_data/Trajectories-10_samples-10000_confounded_masked-[10]_inferred-2.pkl"
+    with open(path, 'rb') as handle:
+        load = pickle.load(handle)
+        npz_dic = load['npz_dic']
+        regr = load['regr']
 
 
 if __name__ == "__main__":
