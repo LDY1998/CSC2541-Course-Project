@@ -301,7 +301,7 @@ def replace_latents(b, w, w2, z):
 
 def factor_model(confounded, drop_dims, latent_dim):
     set_rand_seed()
-    save_path = "../expert_data/Trajectories-10_samples-10000"
+    save_path = "../generated_data/Trajectories-10_samples-10000"
     if confounded:
         save_path += "_confounded"
 
@@ -332,7 +332,7 @@ def factor_model(confounded, drop_dims, latent_dim):
 def main():
     factor_model(True, [10], 3) #  confounded + mask-[10] + inferred-3
     factor_model(True, [10], -1)  # confounded + mask-[10] + uninferred
-    path = "../expert_data/Trajectories-10_samples-10000_confounded_masked-[10].pkl"
+    path = "../generated_data/Trajectories-10_samples-10000_confounded_masked-[10]_inferred-3.pkl"
     with open(path, 'rb') as handle:
         load = pickle.load(handle)
         npz_dic = load['npz_dic']
