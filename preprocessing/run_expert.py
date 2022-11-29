@@ -2,38 +2,32 @@ import os
 import json
 import pickle
 import numpy as np
-import load_policy_torch
+import load_expert_policy
 import torch
 
+EXPERT_POLICY_PATH = "../experts/Hopper-v2.pkl"
+ENV_NAME = "Hopper-v2"
 
-def main():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('expert_policy_file', type=str)
-    parser.add_argument('envname', type=str)
-    parser.add_argument('--render', action='store_true')
-    parser.add_argument("--max_timesteps", type=int)
-    parser.add_argument('--num_rollouts', type=int, default=20,
-                        help='Number of expert roll outs')
-    args = parser.parse_args()
+def run_expert(num_traj=1, max_timesteps=1000):
+    
 
     print('loading and building expert policy')
-    policy_fn = load_policy_torch.ExpertPolicy(args.expert_policy_file)
+    policy_fn = load_expert_policy.ExpertPolicy(EXPERT_POLICY_PATH)
     print('loaded atraintnd built')
     
-    save_name = args.envname # + '_' + time.strftime('%Y-%m-%d-%H-%M-%S')
+    save_name = ENV_NAME # + '_' + time.strftime('%Y-%m-%d-%H-%M-%S')
  
 
     import gym
-    env = gym.make(args.envname)
-    max_steps = args.max_timesteps or env.spec.timestep_limit
+    env = gym.make(ENV_NAME)
+    max_steps = max_timesteps or env.spec.timestep_limit
 
     returns = []
     observations = []
     actions = []
     timesteps = []
     rollouts = []
-    for i in range(args.num_rollouts):
+    for i in range(num_traj):
         timesteps_rollout = []
         print('iter', i)
         obs = env.reset()
@@ -51,8 +45,8 @@ def main():
             obs, r, done, _ = env.step(action)
             totalr += r
             steps += 1
-            if args.render:
-                env.render()
+            # if render:
+                # env.render()
             if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
             if steps >= max_steps:
                 break
@@ -72,8 +66,19 @@ def main():
                     'actions': np.squeeze(np.array(actions), axis=1), "timesteps": np.array(timesteps), "trajectories": np.array(rollouts)}
 
 
-    with open(os.path.join('expert_data', args.envname + '.pkl'), 'wb') as f:
+    with open(os.path.join('expert_data', save_name + '.pkl'), 'wb') as f:
         pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
 
+
+
 if __name__ == '__main__':
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    # parser.add_argument('expert_policy_file', type=str)
+    # parser.add_argument('envname', type=str)
+    parser.add_argument('--render', action='store_true')
+    parser.add_argument("--max_timesteps", type=int)
+    parser.add_argument('--num_traj', type=int, default=20,
+                        help='Number of expert roll outs')
+    args = parser.parse_args()
+    run_expert(args.num_traj, args.render, args.max_timesteps)
