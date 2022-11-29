@@ -10,8 +10,11 @@ from torch.utils.data import DataLoader
 from ignite.engine import Engine, Events
 from ignite.metrics import MeanAbsoluteError, Loss
 import numpy as np
+from pytorch_lightning import seed_everything
+seed_everything(42)
 
-from deconfounder.deconfounder import factor_model as load_factor_model
+# from deconfounder.deconfounder import factor_model as load_factor_model
+from deconfounder.vae import factor_model as load_factor_model
 from ccil.environments.hopper import HopperStateEncoder
 from ccil.utils.data import random_split, batch_cat, DataLoaderRepeater, Trajectory, TransitionDataset
 from ccil.utils.models import SimplePolicy, MLP, UniformMaskPolicy
@@ -162,8 +165,10 @@ def imitate(args):
     print("Trained")
 
     # Run policies in environment
-    run_fn = dict(simple=run_simple, uniform=run_uniform)[args.network]
-    run_fn(policy_model, state_encoder)
+    # run_fn = dict(simple=run_simple, uniform=run_uniform)[args.network]
+    # run_fn(policy_model, state_encoder)
+    if args.network == 'simple':
+        run_simple(policy_model, state_encoder)
 
     if args.save:
         name = args.name or f"{args.input_mode}_{args.network}_{datetime.now():%Y%m%d-%H%M%S}"
@@ -177,7 +182,7 @@ def imitate(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--confounded', action='store_true')
-    parser.add_argument('--drop_dims', nargs='+', type=int)
+    parser.add_argument('--drop_dims', nargs='+', type=int, default=[])
     parser.add_argument('--latent_dim', type=int, default=-1)
 
     parser.add_argument('--network', choices=['simple', 'uniform'], required=True)

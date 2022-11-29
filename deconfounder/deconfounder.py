@@ -301,12 +301,17 @@ def replace_latents(b, w, w2, z):
 
 def factor_model(confounded, drop_dims, latent_dim):
     set_rand_seed()
-    save_path = "../generated_data/Trajectories-10_samples-10000"
+    save_path = "./generated_data/Trajectories-10_samples-10000"
     if confounded:
         save_path += "_confounded"
 
     if len(drop_dims) != 0:  # masked
         save_path += f"_masked-{drop_dims}"
+
+    if latent_dim == -1:
+        save_path += '.pkl'
+    else:
+        save_path += f"_inferred-{latent_dim}.pkl"
 
     save_file = Path(save_path)
     if not save_file.is_file():
@@ -314,11 +319,11 @@ def factor_model(confounded, drop_dims, latent_dim):
         input_path = confounded_path if confounded else expert_path
         X, dict_distribution, _ = load_data(input_path, drop_dims)
         if latent_dim == -1:  # not use factor model
-            save_path += ".pkl"
+            # save_path += ".pkl"
             data = {'npz_dic': {**dict_distribution, 'zs': None},
                     'regr': None}
         else:
-            save_path += f"_inferred-{latent_dim}.pkl"
+            # save_path += f"_inferred-{latent_dim}.pkl"
             deconfounder = Deconfounder(X, latent_dim)
             z = deconfounder.substitute()
             regr = MultiOutputRegressor(MLPRegressor(random_state=1, max_iter=500))

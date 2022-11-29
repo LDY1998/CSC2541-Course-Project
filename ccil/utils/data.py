@@ -315,7 +315,7 @@ class TransitionDataset:
 
         indices = self.starts[indices]
         indices = indices[:, None] + self.stack_arange[None, :]
-        tensors = [t[indices] for t in self.tensors[:-1]]
+        tensors = [t[indices] if t is not None else None for t in self.tensors[:-1]]
         return Batch(*tensors, indices=indices)
 
     def to(self, device):

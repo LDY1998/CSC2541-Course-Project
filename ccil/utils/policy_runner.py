@@ -13,6 +13,7 @@ class PolicyRunner:
         self.state_encoder = state_encoder
 
     def run_episode(self):
+        # 40, 42, 43
         state, done = self.env.reset(), False
         state = state[0]
         trajectory = None
