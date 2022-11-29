@@ -33,9 +33,9 @@ class ExpertPolicy(torch.nn.Module):
         super().__init__()
         policy_params, self.nonlin_type = load_policy_file(filename)
         assert list(policy_params['obsnorm'].keys()) == ['Standardizer']
-        self.obsnorm_mean = policy_params['obsnorm']['Standardizer']['mean_1_D']
-        self.obsnorm_meansq = policy_params['obsnorm']['Standardizer']['meansq_1_D']
-        self.obsnorm_stdev = np.sqrt(np.maximum(0, self.obsnorm_meansq - np.square(self.obsnorm_mean)))
+        self.obsnorm_mean = torch.Tensor(policy_params['obsnorm']['Standardizer']['mean_1_D'])
+        self.obsnorm_meansq = torch.Tensor(policy_params['obsnorm']['Standardizer']['meansq_1_D'])
+        self.obsnorm_stdev = torch.Tensor(np.sqrt(np.maximum(0, self.obsnorm_meansq - np.square(self.obsnorm_mean))))
 
         self.layers = []
         def read_layer(l):
