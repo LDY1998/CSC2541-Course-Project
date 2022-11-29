@@ -32,19 +32,19 @@ def run_expert(num_traj=1, max_timesteps=1000):
     for i in range(num_traj):
         timesteps_rollout = []
         print('iter', i)
-        obs = env.reset()
+        obs, _ = env.reset()
         done = False
         totalr = 0.
         steps = 0
         while not done:
             x = torch.Tensor(obs[None,:])
             action = policy_fn(x)
-            action = action.detach().numpy()
+            action = action.detach().numpy().squeeze()
             observations.append(obs)
             actions.append(action)
             rollouts.append(i)
             timesteps_rollout.append(steps)
-            obs, r, done, _ = env.step(action)
+            obs, r, done, _, _ = env.step(action)
             totalr += r
             steps += 1
             # if render:
@@ -59,17 +59,17 @@ def run_expert(num_traj=1, max_timesteps=1000):
     print('mean return {}'.format(np.mean(returns)))
     print('std of return {}'.format(np.std(returns)))
     
-    with open(os.path.join('expert_data', save_name + '.json'), 'w') as f:
-        json.dump({'returns': returns, 
-                    'mean_return': np.mean(returns),
-                    'std_return': np.std(returns)}, f)
+    # with open(os.path.join('expert_data', save_name + '.json'), 'w') as f:
+    #     json.dump({'returns': returns, 
+    #                 'mean_return': np.mean(returns),
+    #                 'std_return': np.std(returns)}, f)
     
-    expert_data = {'observations': np.array(observations),
-                    'actions': np.squeeze(np.array(actions), axis=1), "timesteps": np.array(timesteps), "trajectories": np.array(rollouts)}
+    # expert_data = {'observations': np.array(observations),
+    #                 'actions': np.squeeze(np.array(actions), axis=1), "timesteps": np.array(timesteps), "trajectories": np.array(rollouts)}
 
 
-    with open(os.path.join('expert_data', save_name + '.pkl'), 'wb') as f:
-        pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
+    # with open(os.path.join('expert_data', save_name + '.pkl'), 'wb') as f:
+    #     pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
 
 
 
