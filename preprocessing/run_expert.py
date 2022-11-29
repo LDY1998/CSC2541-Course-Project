@@ -4,8 +4,9 @@ import pickle
 import numpy as np
 import load_expert_policy
 import torch
+from create_env import create_env
 
-EXPERT_POLICY_PATH = "../experts/Hopper-v2.pkl"
+EXPERT_POLICY_PATH = "./experts/Hopper-v2.pkl"
 ENV_NAME = "Hopper-v2"
 
 def run_expert(num_traj=1, max_timesteps=1000):
@@ -20,6 +21,7 @@ def run_expert(num_traj=1, max_timesteps=1000):
 
     import gym
     env = gym.make(ENV_NAME)
+    # env = create_env(random_noise=0, max_steps=max_timesteps)
     max_steps = max_timesteps or env.spec.timestep_limit
 
     returns = []
@@ -77,8 +79,8 @@ if __name__ == '__main__':
     # parser.add_argument('expert_policy_file', type=str)
     # parser.add_argument('envname', type=str)
     parser.add_argument('--render', action='store_true')
-    parser.add_argument("--max_timesteps", type=int)
-    parser.add_argument('--num_traj', type=int, default=20,
+    parser.add_argument("--max_timesteps", type=int, default=1000)
+    parser.add_argument('--num_traj', type=int, default=10,
                         help='Number of expert roll outs')
     args = parser.parse_args()
-    run_expert(args.num_traj, args.render, args.max_timesteps)
+    run_expert(args.num_traj, args.max_timesteps)
