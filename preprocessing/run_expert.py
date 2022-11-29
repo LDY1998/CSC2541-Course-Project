@@ -59,17 +59,17 @@ def run_expert(num_traj=1, max_timesteps=1000):
     print('mean return {}'.format(np.mean(returns)))
     print('std of return {}'.format(np.std(returns)))
     
-    # with open(os.path.join('expert_data', save_name + '.json'), 'w') as f:
-    #     json.dump({'returns': returns, 
-    #                 'mean_return': np.mean(returns),
-    #                 'std_return': np.std(returns)}, f)
+    with open(os.path.join('expert_data', save_name + '.json'), 'w') as f:
+        json.dump({'returns': returns, 
+                    'mean_return': np.mean(returns),
+                    'std_return': np.std(returns)}, f)
     
     expert_data = {'observations': np.array(observations),
                     'actions': np.squeeze(np.array(actions), axis=1), "timesteps": np.array(timesteps), "trajectories": np.array(rollouts)}
 
 
-    # with open(os.path.join('expert_data', save_name + '.pkl'), 'wb') as f:
-    #     pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
+    with open(os.path.join('expert_data', save_name + '.pkl'), 'wb') as f:
+        pickle.dump(expert_data, f, pickle.HIGHEST_PROTOCOL)
 
 
 
