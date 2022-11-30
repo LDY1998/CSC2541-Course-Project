@@ -36,5 +36,6 @@ class UniformMaskPolicy(nn.Module):
 
     def forward(self, state, mask):
         mask = mask.to(state).expand_as(state)
-        x = torch.cat([state * mask, mask], 1)
+        # x = torch.cat([state * mask, mask], 1)
+        x = state * mask
         return self.net(x)

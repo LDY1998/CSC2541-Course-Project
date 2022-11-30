@@ -95,7 +95,7 @@ def factor_model(confounded, drop_dims, latent_dim):
 
     loader = DataLoader(dataset, batch_size=64)
     model = VAE(dataset.states.shape[-1], latent_dim)
-    train(10, model, loader, 'cuda:0')
+    train(10, model, loader, 'cpu')
     data['regr'] = model
     data['npz_dic']['zs'] = model.predict(dataset.states)
     return data

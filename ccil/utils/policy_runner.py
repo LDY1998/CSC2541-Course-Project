@@ -14,7 +14,7 @@ class PolicyRunner:
 
     def run_episode(self):
         # 40, 42, 43
-        state, done = self.env.reset(), False
+        state, done = self.env.reset(seed=42), False
         state = state[0]
         trajectory = None
         while not done:
@@ -54,6 +54,7 @@ class PolicyRunner:
 
 
 def run_fixed_mask(env, policy_model, state_encoder, mask, num_episodes):
+    # env.reset(seed=42)
     agent = FixedMaskPolicyAgent(policy_model, mask)
     runner = PolicyRunner(env, agent, state_encoder)
     trajectories = runner.run_num_episodes(num_episodes)

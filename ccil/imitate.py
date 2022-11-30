@@ -127,9 +127,10 @@ def imitate(args):
         policy_model = SimplePolicy(MLP([input_dim, 50, 50, 3])).to(device)
         max_epochs = 10
     elif args.network == 'uniform':
-        input_dim = 2 * state_encoder.step(dataset[0].states[0, -1].numpy(), None).shape[-1]
-        policy_model = UniformMaskPolicy(MLP([input_dim, 50, 50, 50, 3])).to(device)
-        max_epochs = 20
+        input_dim = state_encoder.step(dataset[0].states[0, -1].numpy(), None).shape[-1]
+        # input_dim = 2 * state_encoder.step(dataset[0].states[0, -1].numpy(), None).shape[-1]
+        policy_model = UniformMaskPolicy(MLP([input_dim, 50, 50, 3])).to(device)
+        max_epochs = 10
     else:
         raise ValueError()
 
@@ -169,9 +170,13 @@ def imitate(args):
     # run_fn(policy_model, state_encoder)
     if args.network == 'simple':
         run_simple(policy_model, state_encoder)
+    
+    if args.network == 'uniform':
+        # run_uniform(policy_model, state_encoder)
+        print("No test in enviroment. Save model for intervention")
 
     if args.save:
-        name = args.name or f"{args.input_mode}_{args.network}_{datetime.now():%Y%m%d-%H%M%S}"
+        name = args.name or f"{args.drop_dims}_{args.latent_dim}_{args.network}_{datetime.now():%Y%m%d-%H%M%S}"
         save_dir = data_root_path / 'policies'
         save_dir.mkdir(parents=True, exist_ok=True)
         path = save_dir / f"{name}.pkl"
