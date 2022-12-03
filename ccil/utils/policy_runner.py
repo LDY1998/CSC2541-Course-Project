@@ -14,7 +14,7 @@ class PolicyRunner:
 
     def run_episode(self):
         # 40, 42, 43
-        state, done = self.env.reset(seed=42), False
+        state, done = self.env.reset(seed=24), False
         state = state[0]
         trajectory = None
         while not done:

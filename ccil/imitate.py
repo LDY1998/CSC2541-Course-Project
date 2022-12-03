@@ -11,7 +11,7 @@ from ignite.engine import Engine, Events
 from ignite.metrics import MeanAbsoluteError, Loss
 import numpy as np
 from pytorch_lightning import seed_everything
-seed_everything(42)
+seed_everything(24)
 
 # from deconfounder.deconfounder import factor_model as load_factor_model
 from deconfounder.vae import factor_model as load_factor_model
@@ -75,8 +75,12 @@ def run_uniform(policy_model, state_encoder):
         print(f'Mean reward mask {mask}: {Trajectory.reward_sum_mean(trajectories)}')
 
 
-def load_dataset(confounded, drop_dims, latent_dim):
+def load_dataset(confounded, drop_dims, latent_dim, deconfounder):
     # Load deconfounders
+    if deconfounder == "fm":
+        from deconfounder.deconfounder import factor_model as load_factor_model
+    else:
+        from deconfounder.vae import factor_model as load_factor_model
     obj = load_factor_model(confounded, drop_dims, latent_dim)
     factor_model = obj['regr']
     mean, std = obj['npz_dic']['mean'], obj['npz_dic']['std']
@@ -111,8 +115,8 @@ def load_dataset(confounded, drop_dims, latent_dim):
 
 
 def imitate(args):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    dataset, state_encoder = load_dataset(args.confounded, args.drop_dims, args.latent_dim)
+    device = torch.device("cuda:1" if torch.cuda.is_available() and torch.cuda.device_count() >= 1 else "cpu")
+    dataset, state_encoder = load_dataset(args.confounded, args.drop_dims, args.latent_dim, args.deconfounder)
     train_dataset, test_dataset = random_split(dataset, [args.num_samples, args.num_samples], args.data_seed)
 
     dataloaders = {
@@ -176,7 +180,7 @@ def imitate(args):
         print("No test in enviroment. Save model for intervention")
 
     if args.save:
-        name = args.name or f"{args.drop_dims}_{args.latent_dim}_{args.network}_{datetime.now():%Y%m%d-%H%M%S}"
+        name = args.name or f"{args.deconfounder}_{args.drop_dims}_{args.latent_dim}_{args.network}_{datetime.now():%Y%m%d-%H%M%S}"
         save_dir = data_root_path / 'policies'
         save_dir.mkdir(parents=True, exist_ok=True)
         path = save_dir / f"{name}.pkl"
@@ -195,6 +199,7 @@ def main():
     parser.add_argument('--num_samples', type=int, default=300)
     parser.add_argument('--save', action='store_true')
     parser.add_argument('--name', help="Policy save filename")
+    parser.add_argument('--deconfounder', type=str)
     imitate(parser.parse_args())
 
 
