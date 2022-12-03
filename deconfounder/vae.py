@@ -35,10 +35,13 @@ class VAE(nn.Module):
         return self.decode(z), x, mu, logvar
 
     def predict(self, x):
-        self.to('cpu')
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        # print(f"------- device {torch.cuda.is_available()} -------")
+        self.to(device)
         x = torch.from_numpy(x).float()
+        x = x.to(device)
         mu, _ = self.encode(x)
-        return mu.detach().numpy()
+        return mu.cpu().detach().numpy()
 
     def loss_function(self, recon_x, x, mu, logvar, kld_weight=1):
         recon_loss = F.mse_loss(recon_x, x)
@@ -95,7 +98,8 @@ def factor_model(confounded, drop_dims, latent_dim):
 
     loader = DataLoader(dataset, batch_size=64)
     model = VAE(dataset.states.shape[-1], latent_dim)
-    train(10, model, loader, 'cpu')
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    train(10, model, loader, device)
     data['regr'] = model
     data['npz_dic']['zs'] = model.predict(dataset.states)
     return data

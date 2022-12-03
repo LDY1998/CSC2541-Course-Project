@@ -18,7 +18,7 @@ from ccil.imitate import load_dataset
 
 from pytorch_lightning import seed_everything
 
-seed_everything(42)
+
 def sample(weights, temperature):
     return Bernoulli(logits=torch.from_numpy(weights) / temperature).sample().long().numpy()
 
@@ -78,10 +78,12 @@ class SoftQAlgo:
             )
             
 
-        return best_mask, best_reward
+        return best_mask, best_reward, rewards
 
 
 def intervention_policy_execution(args):
+    seed = args.seed
+    seed_everything(seed)
     policy_save_dir = data_root_path / 'policies'
     if args.policy_name:
         policy_path = policy_save_dir / f"{args.policy_name}.pkl"
@@ -94,17 +96,18 @@ def intervention_policy_execution(args):
     print(f"Loaded policy from {policy_path}")
 
     env = gym.make("Hopper-v2")
-    env.reset(seed=42)
-    dataset, state_encoder = load_dataset(args.confounded, args.drop_dims, args.latent_dim)
+    env.reset(seed=seed)
+    dataset, state_encoder = load_dataset(args.confounded, args.drop_dims, args.latent_dim, args.deconfounder)
     # state_encoder = HopperStateEncoder(random=False)
 
     def run_step(mask):
-        # env.reset(seed=42)
+        env.reset(seed=seed)
+        # seed_everything(24)
         trajectories = run_fixed_mask(env, policy_model, state_encoder, mask, 1)
         return Trajectory.reward_sum_mean(trajectories)
 
     input_dim = state_encoder.step(dataset[0].states[0, -1].numpy(), None).shape[-1]
-    best_mask, best_reward = SoftQAlgo(input_dim, run_step, args.num_its, temperature=10).run()
+    best_mask, best_reward, rewards = SoftQAlgo(input_dim, run_step, args.num_its, temperature=10).run()
 
     # best_mask = trace[-1]['mode']
 
@@ -113,6 +116,8 @@ def intervention_policy_execution(args):
     print(f"Final mask {best_mask.tolist()}")
     print(f"Final reward {Trajectory.reward_sum_mean(trajectories)}")
     print(f"Best Reward:{best_reward}")
+
+    return args.num_its, rewards
 
 
 def main():
@@ -124,6 +129,7 @@ def main():
     parser.add_argument('--latent_dim', type=int, default=-1)
     parser.add_argument('--num_its', type=int, default=20)
     parser.add_argument('--temperature', type=float, default=10)
+    parser.add_argument('--deconfounder', type=str, default=None)
     intervention_policy_execution(parser.parse_args())
 
 
